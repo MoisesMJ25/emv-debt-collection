@@ -21,7 +21,7 @@ class BackofficeApi:
     def _session(self) -> requests.Session:
         if not hasattr(self._local, "session"):
             session = requests.Session()
-            session.headers.update({"Content-Type": "application/json", "x-metromuv-api-key": self.cfg.api_key})
+            session.headers.update({"Content-Type": "application/json", "x-api-key": self.cfg.api_key})
             self._local.session = session
         session_: requests.Session = self._local.session
         return session_
