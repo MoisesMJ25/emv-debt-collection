@@ -1,0 +1,6 @@
+# Copiar a backend.hcl (ignorado por git) y usar: terraform init -backend-config=backend.hcl
+resource_group_name  = "example-rg"
+storage_account_name = "examplestorageacct"
+container_name       = "tfstate"
+key                  = "emv-debt-collection.tfstate"
+use_azuread_auth     = true

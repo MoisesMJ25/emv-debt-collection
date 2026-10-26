@@ -1,0 +1,85 @@
+[build-system]
+requires = ["setuptools==80.9.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "emv-debt-collection"
+version = "1.0.0"
+description = "Cobro diario de deuda EMV con retiros del backoffice (Databricks)"
+readme = "README.md"
+requires-python = ">=3.11,<3.12"
+# Sin dependencias de runtime declaradas a propósito: Databricks Runtime 15.4 LTS ya trae pandas y requests,
+# y pymongo/bson vienen instalados en el cluster. Declararlas haría que pip pisara las versiones del runtime.
+dependencies = []
+
+[project.optional-dependencies]
+# Versiones fijas. pandas/numpy/requests replican las de DBR 15.4 LTS para que los tests reflejen el runtime.
+dev = [
+    "build==1.6.1",
+    "mongomock==4.3.0",
+    "mypy==2.4.0",
+    "numpy==1.23.5",
+    "pandas==1.5.3",
+    "pandas-stubs==1.5.3.230321",
+    "pre-commit==4.6.2",
+    "pymongo==4.18.3",
+    "pytest==9.1.1",
+    "pytest-cov==7.1.0",
+    "requests==2.31.0",
+    "responses==0.26.3",
+    "ruff==0.17.0",
+    "types-requests==2.33.0.20261006",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+emv_debt_collection = ["py.typed"]
+
+# ---------- ruff ----------
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "N", "UP", "B", "C4", "SIM", "S", "RUF", "PL"]
+ignore = [
+    "PLR0911", "PLR0912", "PLR0913", "PLR0915", "PLR0917",  # funciones portadas tal cual desde el notebook
+    "PLR2004",  # códigos HTTP como literales (429, 500, 408) son más legibles así
+    "RUF001", "RUF002", "RUF003",  # texto en español con caracteres unicode intencionales
+    "SIM105",  # se mantiene try/except/pass del original
+    "UP017",  # timezone.utc como en el original
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S101", "S105", "S106", "S108", "PLR2004"]
+# El notebook usa globales de Databricks (dbutils, spark, display) y las definidas por el %run corporativo.
+"notebooks/**" = ["F821", "E402", "I001"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["emv_debt_collection"]
+known-local-folder = ["conftest"]
+
+# ---------- mypy ----------
+[tool.mypy]
+python_version = "3.11"
+strict = true
+files = ["src"]
+warn_unreachable = true
+
+[[tool.mypy.overrides]]
+module = ["mongomock.*", "responses.*"]
+ignore_missing_imports = true
+
+# ---------- pytest ----------
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+# Umbral calibrado con las 5 suites pedidas (~67%): el pegamento de Databricks (composition, logging,
+# delta_store, log_publisher, dev_json) no se ejecuta fuera de Databricks.
+addopts = "-ra --strict-markers --cov=emv_debt_collection --cov-report=term-missing --cov-fail-under=65"
+
+[tool.coverage.run]
+branch = true
+source = ["emv_debt_collection"]

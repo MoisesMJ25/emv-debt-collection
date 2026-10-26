@@ -1,0 +1,97 @@
+# Databricks Asset Bundle del proceso emv_debt_collection.
+#
+# Ningún valor real vive en este archivo: las variables sin default se entregan en el despliegue como
+# BUNDLE_VAR_<nombre> (deploy.yml las toma de las variables del GitHub Environment de cada target).
+# El host y las credenciales vienen de DATABRICKS_HOST / DATABRICKS_CLIENT_ID / DATABRICKS_CLIENT_SECRET.
+
+bundle:
+  name: emv-debt-collection
+  databricks_cli_version: ">= 1.18.0"
+
+include:
+  - resources/*.yml
+
+artifacts:
+  emv_debt_collection_wheel:
+    type: whl
+    build: python -m build --wheel --outdir dist
+    path: .
+    # Versión única por despliegue: evita que el cluster existente reutilice un wheel cacheado con la misma versión.
+    dynamic_version: true
+
+variables:
+  # --- cómputo e identidad ---
+  existing_cluster_id:
+    description: Cluster existente (DBR 15.4 LTS, con pymongo instalado) donde corre la tarea.
+  service_principal_application_id:
+    description: Application ID del service principal con el que corre el job en prod (run_as).
+    default: ""
+  failure_notification_email:
+    description: Destinatario de la notificación nativa de Databricks cuando el job falla.
+
+  # --- comportamiento ---
+  dry_run:
+    description: '"true" no cobra ni escribe en Delta. El target prod lo fija en "false".'
+    default: "true"
+
+  # --- trigger: el job corre cuando se actualiza la tabla origen (ver README, "Dependencia de la tabla origen") ---
+  trigger_pause_status:
+    description: UNPAUSED o PAUSED. En el target dev, el modo development lo pausa siempre.
+    default: UNPAUSED
+  trigger_wait_after_last_change_seconds:
+    description: Espera sin nuevos cambios en la tabla antes de disparar (agrupa escrituras del mismo pipeline).
+    default: 900
+  trigger_min_time_between_triggers_seconds:
+    description: Tiempo mínimo entre dos ejecuciones disparadas por la tabla.
+    default: 3600
+
+  # --- parámetros del ambiente (llegan al notebook como parámetros del job) ---
+  api_base_url:
+    description: URL base de la API del backoffice.
+  api_key_scope:
+    description: Secret scope de la API key del backoffice.
+  api_key_name:
+    description: Key de la API key dentro del scope.
+  mongo_connection:
+    description: Primer argumento de conectar_mongo (conexión).
+  mongo_secret:
+    description: Segundo argumento de conectar_mongo (secreto).
+  source_table:
+    description: Tabla de deudas (catalogo.schema.tabla). También es la tabla que dispara el job.
+  tables_schema:
+    description: catalogo.schema donde viven <env>_emv_debt_collection_runs y _results.
+  operator_user:
+    description: Usuario de auditoría enviado a la API.
+  logs_dir:
+    description: Carpeta del Volume donde se copia el log de cada ejecución.
+  email_recipients:
+    description: Destinatarios del correo, en UN string (se pasa tal cual a send_email).
+  teams_chat_id:
+    description: Chat de Teams para send_message.
+  dev_json_accounts:
+    description: SOLO dev. Export JSON de cuentas; vacío = leer Mongo. Prod falla si viene informado.
+    default: ""
+  dev_json_transactions:
+    description: SOLO dev. Export JSON de transacciones.
+    default: ""
+  utils_path:
+    description: Carpeta que contiene el módulo `utils` (send_email/send_message), si no está en el sys.path.
+    default: ""
+
+targets:
+  dev:
+    mode: development  # prefija el nombre del job y pausa el trigger
+    default: true
+    workspace:
+      root_path: /Workspace/Users/${workspace.current_user.userName}/.bundle/${bundle.name}/${bundle.target}
+
+  prod:
+    mode: production
+    workspace:
+      root_path: /Workspace/Users/${workspace.current_user.userName}/.bundle/${bundle.name}/${bundle.target}
+    run_as:
+      service_principal_name: ${var.service_principal_application_id}
+    variables:
+      dry_run: "false"
+      dev_json_accounts: ""
+      dev_json_transactions: ""

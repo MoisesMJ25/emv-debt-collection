@@ -1,0 +1,49 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.venv/
+venv/
+
+# Herramientas
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# Databricks bundle
+.databricks/
+
+# Terraform
+infra/terraform/.terraform/
+infra/terraform/.terraform.lock.hcl.bak
+*.tfstate
+*.tfstate.*
+*.tfvars
+!*.tfvars.example
+backend.hcl
+crash.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# Datos locales (nunca exports reales de Mongo en el repo)
+*.json.local
+dev_accounts.json
+dev_transactions.json
+
+# SO
+.DS_Store
+Thumbs.db

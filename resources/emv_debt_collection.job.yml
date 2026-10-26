@@ -1,0 +1,72 @@
+resources:
+  jobs:
+    emv_debt_collection:
+      name: emv-debt-collection-${bundle.target}
+      description: >-
+        Cobro diario de deuda EMV. Corre cuando se actualiza la tabla origen de deudas (tarjetas_por_cobrar),
+        que a su vez solo se actualiza cuando su job upstream termina con éxito.
+      max_concurrent_runs: 1
+
+      # Debe correr DESPUÉS de la actualización de la tabla origen: si corriera antes, los cobros hechos desde la
+      # última actualización no estarían en MONTO_COBRADO_PARCIAL y esas deudas quedarían EXCLUDED.
+      trigger:
+        pause_status: ${var.trigger_pause_status}
+        table_update:
+          table_names:
+            - ${var.source_table}
+          condition: ANY_UPDATED
+          wait_after_last_change_seconds: ${var.trigger_wait_after_last_change_seconds}
+          min_time_between_triggers_seconds: ${var.trigger_min_time_between_triggers_seconds}
+
+      # Notificación nativa de Databricks (complementa el correo/Teams del propio proceso).
+      email_notifications:
+        on_failure:
+          - ${var.failure_notification_email}
+        no_alert_for_skipped_runs: true
+
+      parameters:
+        - name: env
+          default: ${bundle.target}
+        - name: dry_run
+          default: ${var.dry_run}
+        - name: run_date
+          default: ""  # vacío = hoy en hora de Chile
+        - name: utils_path
+          default: ${var.utils_path}
+        - name: api_base_url
+          default: ${var.api_base_url}
+        - name: api_key_scope
+          default: ${var.api_key_scope}
+        - name: api_key_name
+          default: ${var.api_key_name}
+        - name: mongo_connection
+          default: ${var.mongo_connection}
+        - name: mongo_secret
+          default: ${var.mongo_secret}
+        - name: source_table
+          default: ${var.source_table}
+        - name: tables_schema
+          default: ${var.tables_schema}
+        - name: operator_user
+          default: ${var.operator_user}
+        - name: logs_dir
+          default: ${var.logs_dir}
+        - name: email_recipients
+          default: ${var.email_recipients}
+        - name: teams_chat_id
+          default: ${var.teams_chat_id}
+        - name: dev_json_accounts
+          default: ${var.dev_json_accounts}
+        - name: dev_json_transactions
+          default: ${var.dev_json_transactions}
+
+      tasks:
+        - task_key: emv_debt_collection
+          existing_cluster_id: ${var.existing_cluster_id}
+          notebook_task:
+            notebook_path: ../notebooks/run_emv_debt_collection.py
+            source: WORKSPACE
+          libraries:
+            - whl: ../dist/*.whl
+          # Nunca reintentar la tarea completa: los retiros no son idempotentes a ciegas.
+          max_retries: 0

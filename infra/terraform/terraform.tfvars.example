@@ -1,0 +1,21 @@
+# Copiar a terraform.tfvars (ignorado por git) y completar. Valores de ejemplo, no reales.
+databricks_host = "https://adb-0000000000000000.0.azuredatabricks.net"
+job_principal   = "00000000-0000-0000-0000-000000000000"
+
+logs_volume = {
+  catalog = "example_catalog"
+  schema  = "example_schema"
+  name    = "example_volume"
+}
+
+source_table   = "example_catalog.example_schema.example_debts"
+results_schema = "example_catalog.example_schema"
+
+secret_scopes = {
+  "example-backoffice-dev"  = {}
+  "example-backoffice-prod" = {}
+  "example-mongo-dev"       = {}
+  "example-mongo-prod"      = {}
+  # Scope respaldado por Key Vault:
+  # "example-kv-scope" = { keyvault = { resource_id = "/subscriptions/.../vaults/example", dns_name = "https://example.vault.azure.net/" } }
+}

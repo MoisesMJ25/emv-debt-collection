@@ -1,0 +1,73 @@
+name: deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: Target del bundle
+        type: choice
+        options: [dev, prod]
+        default: dev
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-${{ inputs.target }}
+  cancel-in-progress: false # nunca cortar un despliegue a medias
+
+jobs:
+  ci:
+    uses: ./.github/workflows/ci.yml
+    secrets: inherit
+
+  deploy:
+    name: bundle deploy (${{ inputs.target }})
+    needs: ci
+    # prod solo desde main. La aprobación la exige el GitHub Environment "prod" (required reviewers).
+    if: inputs.target == 'dev' || github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    environment: ${{ inputs.target }}
+    env:
+      # Secretos del GitHub Environment (sobrescriben a los del repositorio con el mismo nombre).
+      DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST }}
+      DATABRICKS_CLIENT_ID: ${{ secrets.DATABRICKS_CLIENT_ID }}
+      DATABRICKS_CLIENT_SECRET: ${{ secrets.DATABRICKS_CLIENT_SECRET }}
+      # Variables del GitHub Environment -> variables del bundle.
+      BUNDLE_VAR_existing_cluster_id: ${{ vars.EXISTING_CLUSTER_ID }}
+      BUNDLE_VAR_service_principal_application_id: ${{ vars.SERVICE_PRINCIPAL_APPLICATION_ID }}
+      BUNDLE_VAR_failure_notification_email: ${{ vars.FAILURE_NOTIFICATION_EMAIL }}
+      BUNDLE_VAR_api_base_url: ${{ vars.API_BASE_URL }}
+      BUNDLE_VAR_api_key_scope: ${{ vars.API_KEY_SCOPE }}
+      BUNDLE_VAR_api_key_name: ${{ vars.API_KEY_NAME }}
+      BUNDLE_VAR_mongo_connection: ${{ vars.MONGO_CONNECTION }}
+      BUNDLE_VAR_mongo_secret: ${{ vars.MONGO_SECRET }}
+      BUNDLE_VAR_source_table: ${{ vars.SOURCE_TABLE }}
+      BUNDLE_VAR_tables_schema: ${{ vars.TABLES_SCHEMA }}
+      BUNDLE_VAR_operator_user: ${{ vars.OPERATOR_USER }}
+      BUNDLE_VAR_logs_dir: ${{ vars.LOGS_DIR }}
+      BUNDLE_VAR_email_recipients: ${{ vars.EMAIL_RECIPIENTS }}
+      BUNDLE_VAR_teams_chat_id: ${{ vars.TEAMS_CHAT_ID }}
+      BUNDLE_VAR_utils_path: ${{ vars.UTILS_PATH }}
+      BUNDLE_VAR_dev_json_accounts: ${{ vars.DEV_JSON_ACCOUNTS }}
+      BUNDLE_VAR_dev_json_transactions: ${{ vars.DEV_JSON_TRANSACTIONS }}
+    steps:
+      - uses: actions/checkout@v5.0.0
+
+      - uses: actions/setup-python@v6.0.0
+        with:
+          python-version: "3.11"
+
+      - name: Instalar build
+        run: python -m pip install "build==1.6.1"
+
+      - uses: databricks/setup-cli@v1.18.0
+
+      - name: Validar
+        run: databricks bundle validate -t "${{ inputs.target }}"
+
+      - name: Desplegar (wheel + notebook + job)
+        run: databricks bundle deploy -t "${{ inputs.target }}"
+
+      - name: Resumen
+        run: databricks bundle summary -t "${{ inputs.target }}" >> "$GITHUB_STEP_SUMMARY"
